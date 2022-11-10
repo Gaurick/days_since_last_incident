@@ -1,4 +1,8 @@
-/*new stuff!
+/* After receiving call after call from my kids' daycare, decided to use
+ * spare parts to make an automatic "Days since last incident" counter.
+ * Since it's got a built in Real Time Clock, why not add a clock to it?
+ *   
+ * new stuff!
  * got a metro mini, 
  * https://www.adafruit.com/product/2590
  * two white seven segment displays,
@@ -8,217 +12,159 @@
  * and another rtc
  * https://www.adafruit.com/product/3296
  * 
- * metro works great, just call it Uno.
- * everything is chained to the i2c connections (clock is A5, data is A4
- * buttons are tied to ground and the following pins,
- * red 2
- * gray 3
- * green 4
- * and INPUT_PULLUP works great, just check for the pin to go LOW for the button press.
- * date *should* be set but include as commented part.
- * addresses of the two seven segment displays are 0x70 and 0x71
- * 
- * 
- * TODO 
- * change the days since incident thing
- * add in a + hour and + minute adjustment option for the extra 2 buttons.
- * maybe polish up code?
- * re-make it and give it away?
+ * All the parts are chained with the data pins all tied to each other 
+ * then tied to A4.  The clock pins are tied together then connected to A5.
+ * New buttons are tied to,
+ * Red 2
+ * Gray 3
+ * Green 4
+ *   
  */
-
-/*
- * After receiving call after call from my kids' daycare, decided to use
- * spare parts to make an automatic "Days since last incident" counter.
- * Since it's got a built in Real Time Clock, why not add a clock to it?
- * 
- * Uses 5v Trinket Pro,
- * https://www.adafruit.com/product/2000
- * Seven Segment Backpack,
- * https://www.adafruit.com/product/878
- * Alpha Numeric display,
- * https://www.adafruit.com/product/1911
- * Real Time Clock
- * https://www.elegoo.com/
- * 
- * Tied the two LED backpacks and the RTC together and connected the lines to...
- * VCC to +5v.
- * Gnd to Gnd.
- * SDA to A4.
- * SCL to A5.
- * 
- * Push button connects...
- * one side to Gnd.
- * other side to 3.
- * 
- * 
- * To do...
- * Put on a sign.
- * Take pictures?
- * I'm pretty happy with it right now.
- * 
- */
-
 
 #include <Wire.h>
-#include <DS3231.h>
-#include <Adafruit_GFX.h>
 #include "Adafruit_LEDBackpack.h"
-//libraries to make the parts do the things.
+#include "RTClib.h"
+//library for the Real Time Clock.
 
-DS3231 clock;
-RTCDateTime dt;
-//startup and set the object for the real time clock.
+RTC_DS1307 rtc;
+//probably create the rtc object to do stuff with below.
+Adafruit_7segment matrix1 = Adafruit_7segment();
+//create an object for the first seven segment display.
+Adafruit_7segment matrix2 = Adafruit_7segment();
+//create an object for the second seven segment display.
 
-Adafruit_7segment matrix = Adafruit_7segment();
-//set the object for the seven segment display for the days since last incident.
+#define red 2
+#define green 3
+#define gray 4
+//set the pins for the buttons.
 
-Adafruit_AlphaNum4 alpha4 = Adafruit_AlphaNum4();
-//set the object for the alpha-numeric display.
-
-int today = 0;
-//variable to hold onto today.
-int now = 0;
-//variable for right now.
+int date = 0;
+//variable for the date to see if it's today or yesterday.
 int incident = 0;
-//how many days without incident have passed.
+//variable to keep track of how many days since things last went wrong.
 int counter = 0;
-//counter to make the colon blink.
+//counter to make colon blink.
+int hourAdjust = 0;
+//variable to adjust hour for daylight savings and such.
+int minuteAdjust = 0;
+//variable to adjust minutes if needed.
 bool colon = 0;
-//flag for the colon to turn on or off.
+//flag for the colon to blink with.
+
 
 void setup() {
   Serial.begin(9600);
-  //start the serial debugger for debugging.
+  Serial.println("starting");
+  //debugging for moral support.
 
-  clock.begin();
-  //start up the clock stuff.
+  rtc.begin();
+  //startup the rtc.
 
-  pinMode(3, INPUT_PULLUP);
-  //set pin 3 to be used on the button and use the trinket's internal pull up resistor for it.
+  // When time needs to be re-set on a previously configured device, the
+  // following line sets the RTC to the date & time this sketch was compiled
+  //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
 
-  matrix.begin(0x71);
-  //startup the seven segment thing and set the address.
+  matrix1.begin(0x70);
+  matrix1.setBrightness(0);
+  //startup the first seven segment display.
+  matrix2.begin(0x71);
+  matrix2.setBrightness(0);
+  //startup the second seven segment display.
 
-  alpha4.begin(0x70);
-
-  dt = clock.getDateTime();
-  //check the time.
-  today = dt.day;
-  //set today as today.
-
-  alpha4.clear();
-  //clear the alpha-numeric display.
-
-  //clock.setDateTime(__DATE__, __TIME__);
-  //uncomment to set the time on the realtime clock.
-  //otherwise leave it commented out since it'll mess things up.
-
-  alpha4.setBrightness(0);
-  matrix.setBrightness(0);
-  //dim the led displayes.
-
+  pinMode(red, INPUT_PULLUP);
+  pinMode(green, INPUT_PULLUP);
+  pinMode(gray, INPUT_PULLUP);
+  //set the pins for the buttons to be inputs and use the internal 
+  //pullup resistor instead of having to setup one myself.
 }
 
 void loop() {
-  int sensorVal = digitalRead(3);
-  //create a variable and read if the button is pressed or not.
-  
-  if(sensorVal == LOW){
-    //if the button is pressed,
+  int readRed = digitalRead(red);
+  int readGreen = digitalRead(green);
+  int readGray = digitalRead(gray);
+  //create variables to check on the buttons.
+
+  if(readRed == LOW){
+    //if the red button is pressed.
     incident = 0;
-    //reset the incident counter to 0.
-    alpha4.clear();
-    matrix.clear();
+    delay(500);
+  }
+
+  if(readGreen == LOW){
+    //if the green button is pressed.
+    hourAdjust ++;
+    //add one to the hourAdjust value.
+    delay(500);
+  }
+
+  if(readGray == LOW){
+    //if the gray button is pressed.
+    minuteAdjust ++;
+    //add one to the minuteAdjust value.
+    delay(500);
   }
 
   checker();
-  //function to check to see if a day without incidents has passed.
-
-  incidentWrite();
-  //function to write the incident data to the alpha numeric display.
-
-  timeWrite();
-  //function to write the time to the seven segment display.
+  incidentDisplay();
+  timeDisplay();
 }
 
 void checker(){
-  //function to see if a day has passed, and if so to increase the days without incident variable.
-  dt = clock.getDateTime();
-  now = dt.day;
-  //check what day it is and set it as now.
-  
-  if(today != now){
-    //if today isn't now then a day has passed.
+  DateTime now = rtc.now();
+  //set the time to now.
+  int today = now.day();
+  //set the variable for today to today's date.
+
+  if(today != date){
+    //check to see if today's date matches the date on record.
+    //if it's different, add a day to the incident counter, then 
+    //set the day to the new one.
+
     incident ++;
-    //add a day without incident.
-    today = now;
-    //today is now.
+    //increase the incident counter.
+    date = today;
+    //set the date to today.
   }
 }
 
-void incidentWrite(){
-  //functions to display the days without incident.
-  //the alphanumeric display i used requires numbers to be input per digit.
-  //hence the breaking up of the number then displaying it.
-  //also it requires the number to be in ascii and not just a decimal,
-  //so each number has to have 48 added to it because the first ascii number (1) is 48.
-  int a = incident / 1000;
-  int b = (incident - (a * 1000));
-  b = b / 100;
-  int c = (incident - ((a * 1000) + (b * 100)));
-  c = c / 10;
-  int d = (incident - ((a * 1000) + (b * 100) + (c * 10)));
+void incidentDisplay(){
+  //display the days since last incident number.
+  matrix1.print(incident);
+  matrix1.writeDisplay();
+  //push the incident number to the display then turn it on.
+}
 
-  alpha4.writeDigitAscii(3, (d + 48));
-  if(incident > 9){
-    alpha4.writeDigitAscii(2, (c + 48));
-    if(incident > 99){
-      alpha4.writeDigitAscii(1, (b + 48));
-      if(incident > 999){
-        alpha4.writeDigitAscii(0, (a + 48));
-        if(incident > 9999){
-          //if we go over 9,999 days without incident display an error.
-          alpha4.writeDigitAscii(0, 69);
-          alpha4.writeDigitAscii(1, 114);
-          alpha4.writeDigitAscii(2, 114);
-          alpha4.writeDigitAscii(3, 45);
-        }
-      }
+void timeDisplay(){
+  DateTime now = rtc.now();
+  int hourNow = now.hour() + hourAdjust;
+  //set the hour then adjust it if needed from the button press adjustment.
+  if(hourNow > 12){
+    if(hourNow < 24){
+      hourNow = hourNow - 12;
+      //sorry i'm a civilian and like 12 hour clocks, not 24 hour ones.
+    }
+
+    else{
+      hourAdjust = 0;
+      //if you're here, then the hour adjust button (green on pin 3)
+      //has been pressed a few too many times.  
+      //change it back to zero.
     }
   }
-  alpha4.writeDisplay();
-  //actually show what's been "written" to the numbers.
-}
-
-void timeWrite(){
-  //show the time.
-  int h = dt.hour;
-  int m = dt.minute;
-
-  if(h > 12){
-    //since i'm a civilian, change 24 hour time to 12 hour time.
-    h = h - 12;
+  int minutesNow = now.minute() + minuteAdjust;
+  //set the minutes, then adjust as needed from the button press adjustments.
+  if(minutesNow > 59){
+    minutesNow = minutesNow - 60;
   }
-
-  if(h > 9){
-    //if the 10's digit of the hour is there, show it.
-    matrix.writeDigitNum(0, (h/10));
+  //if you exceed a full hour of adjustments, reset.
+  if(minuteAdjust > 59){
+    minuteAdjust = 0;
   }
-
-  else{
-    matrix.writeDigitRaw(0, 0);
-    //need to "write" a blank value otherwise the 1 will remain in the hour spot when it shouldn't.
-  }
-
-  matrix.writeDigitNum(1, (h%10));
-  matrix.writeDigitNum(3, (m/10));
-  matrix.writeDigitNum(4, (m%10));
-  //show the rest of the time.
+  //if you press the button more than 59 times, reset the value to 0.
 
   if(counter == 100){
-    //counter stuff to make the colon blink.
+    //counter to blink colon on and off for seconds, kinda.
     counter = 0;
-    //reset the counter variable.
     if(colon == 0){
       colon = 1;
       //if it's off, turn it on.
@@ -232,10 +178,16 @@ void timeWrite(){
 
   else{
     counter ++;
-    //otherwise just increase the counter to "delay".
+    //if it's not time to turn on or off, just increase the number.
   }
-  matrix.drawColon(colon);
-  //set the colon to be on or off based on what it should be to blink slightly.
-  matrix.writeDisplay();
-  //actually show the time on the display.
+
+  int nowTime = ((hourNow * 100) + minutesNow);
+  //get the time and put it in a variable.
+  //cheating by multiplying the hour by 100 so that the minutes
+  //can sneak in the display.
+  
+  matrix2.print(nowTime);
+  matrix2.drawColon(colon);
+  matrix2.writeDisplay();
+  //push the time to the display and then turn it on.
 }
