@@ -1,3 +1,30 @@
+/*new stuff!
+ * got a metro mini, 
+ * https://www.adafruit.com/product/2590
+ * two white seven segment displays,
+ * https://www.adafruit.com/product/1002
+ * more colorful buttons,
+ * https://www.adafruit.com/product/1009
+ * and another rtc
+ * https://www.adafruit.com/product/3296
+ * 
+ * metro works great, just call it Uno.
+ * everything is chained to the i2c connections (clock is A5, data is A4
+ * buttons are tied to ground and the following pins,
+ * red 2
+ * gray 3
+ * green 4
+ * and INPUT_PULLUP works great, just check for the pin to go LOW for the button press.
+ * date *should* be set but include as commented part.
+ * addresses of the two seven segment displays are 0x70 and 0x71
+ * 
+ * 
+ * TODO 
+ * change the days since incident thing
+ * add in a + hour and + minute adjustment option for the extra 2 buttons.
+ * maybe polish up code?
+ * re-make it and give it away?
+ */
 
 /*
  * After receiving call after call from my kids' daycare, decided to use
