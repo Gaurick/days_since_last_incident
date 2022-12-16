@@ -92,15 +92,29 @@ void loop() {
 
   if(readGreen == LOW){
     //if the green button is pressed.
-    hourAdjust ++;
-    //add one to the hourAdjust value.
+    if(hourAdjust > 23){
+      hourAdjust = 0;
+    }
+
+    else{
+      hourAdjust ++;
+      //add one to the hourAdjust value.
+    }
+   
     delay(500);
   }
 
   if(readGray == LOW){
     //if the gray button is pressed.
-    minuteAdjust ++;
-    //add one to the minuteAdjust value.
+    if(minuteAdjust > 59){
+      minuteAdjust = 0;
+    }
+
+    else{
+      minuteAdjust ++;
+      //add one to the minuteAdjust value.
+    }
+    Serial.println(minuteAdjust);
     delay(500);
   }
 
@@ -136,31 +150,32 @@ void incidentDisplay(){
 
 void timeDisplay(){
   DateTime now = rtc.now();
-  int hourNow = now.hour() + hourAdjust;
+  int hourNow = now.hour();
+  hourNow = hourNow + hourAdjust;
   //set the hour then adjust it if needed from the button press adjustment.
-  if(hourNow > 12){
-    if(hourNow < 24){
-      hourNow = hourNow - 12;
-      //sorry i'm a civilian and like 12 hour clocks, not 24 hour ones.
-    }
-
-    else{
-      hourAdjust = 0;
-      //if you're here, then the hour adjust button (green on pin 3)
-      //has been pressed a few too many times.  
-      //change it back to zero.
-    }
+  if(hourNow > 36){
+    hourNow = hourNow - 36;
   }
+
+  else if(hourNow > 24){
+    hourNow = hourNow - 24;
+  }
+
+  else if(hourNow > 12){
+    hourNow = hourNow - 12;
+  }
+  
+  
+
+  
   int minutesNow = now.minute() + minuteAdjust;
-  //set the minutes, then adjust as needed from the button press adjustments.
-  if(minutesNow > 59){
+  if(minutesNow > 119){
+    minutesNow = minutesNow - 120;
+  }
+
+  else if(minutesNow > 59){
     minutesNow = minutesNow - 60;
   }
-  //if you exceed a full hour of adjustments, reset.
-  if(minuteAdjust > 59){
-    minuteAdjust = 0;
-  }
-  //if you press the button more than 59 times, reset the value to 0.
 
   if(counter == 100){
     //counter to blink colon on and off for seconds, kinda.
